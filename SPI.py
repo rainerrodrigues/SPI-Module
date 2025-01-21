@@ -1,4 +1,4 @@
-from myhdl import block, always, instance, Signal, intbv, delay, StopStimulation
+from myhdl import block, always, instance, Signal, intbv, delay, StopSimulation
 
 @block
 def SPIMaster(mosi, miso, sclk, cs, data_in, data_out, clk, start, bit_count=8):
@@ -17,8 +17,9 @@ def SPIMaster(mosi, miso, sclk, cs, data_in, data_out, clk, start, bit_count=8):
 	"""
 	
 	shift_reg = Signal(intbv(0)[bit_count:])
-	bit_idx = Signal(intbv(0,min = 0,max=bit_count))
+	bit_idx = Signal(intbv(0,min = 0,max=bit_count + 1))
 	busy = Signal(bool(0))
+	sclk_internal = Signal(bool(0))
 	
 	@always(clk.posedge)
 	def master_logic():
@@ -29,9 +30,9 @@ def SPIMaster(mosi, miso, sclk, cs, data_in, data_out, clk, start, bit_count=8):
 			busy.next = True
 		elif busy:
 			if bit_idx < bit_count:
-				sclk.next = not sclk # Toggle clock
-				if sclk: # Capture on rising edge
-					data_out.next[bit_idx] = miso
+				sclk_internal.next = not sclk_internal # Toggle clock
+				if sclk_internal: # Capture on rising edge
+					data_out.next = (data_out << 1) | miso
 					mosi.next = shift_reg[bit_count - 1]
 					shift_reg.next = shift_reg << 1
 					bit_idx.next = bit_idx + 1
@@ -39,7 +40,11 @@ def SPIMaster(mosi, miso, sclk, cs, data_in, data_out, clk, start, bit_count=8):
 				cs.next = 1 #Deactivate Chip Select
 				busy.next = False
 					
-	return master_logic
+	@always(clk.posedge)
+	def clock_gen():
+		sclk.next =  sclk_internal
+		
+	return master_logic, clock_gen
 	
 	
 @block
@@ -57,17 +62,17 @@ def SPISlave(miso, mosi, sclk, cs, data_in, data_out, bit_count=8):
 	"""
 	
 	shift_reg = Signal(intbv(0)[bit_count:])
-	bit_idx = Signal(intbv(0, min=o, max=bit_count))
+	bit_idx = Signal(intbv(0, min=0, max=bit_count + 1))
 	
 	@always(sclk.posedge)
 	def slave_logic():
 		if not cs:
-			data_out.next[bit_idx] = mosi
+			data_out.next = (data_out << 1) | mosi
 			miso.next = shift_reg[bit_count - 1]
-			shift_reg.next = shift_reg << 1
-			shift_reg.next[0] = data_in[bit_idx]
+			shift_reg.next = (shift_reg << 1 ) | data_in[bit_idx]
 			bit_idx.next = bit_idx + 1
 		else:
 			bit_idx.next = 0
+			shift_reg.next = 0
 			
 	return slave_logic

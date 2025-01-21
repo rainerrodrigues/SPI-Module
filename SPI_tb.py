@@ -1,4 +1,4 @@
-from myhdl import Signal, intbv, instance, delay, block, StopSimulation
+from myhdl import Signal, intbv,always, instance, delay, block, StopSimulation
 from SPI import SPIMaster, SPISlave
 
 @block
@@ -24,6 +24,9 @@ def spi_testbench():
 	@instance
 	def stimulus():
 		print("Starting SPI Test...")
+		yield delay(20)
+		
+		
 		start.next = True
 		yield clk.posedge
 		start.next = False
@@ -32,11 +35,13 @@ def spi_testbench():
 		while not cs:
 			yield clk.posedge
 			
+		yield delay(10)
+			
 		print(f"Master Sent: {hex(data_in_master)}, Slave Received: {hex(int(data_out_slave))}")
-		print(f"Slave Sent: {hex(data_in_slave}}, Master Received: {hex(int(data_out_master))}")
+		print(f"Slave Sent: {hex(data_in_slave)}, Master Received: {hex(int(data_out_master))}")
 		
-		assert data_in_master == data_out_slave, "Master to Slave data mismatch"
-		assert data_in_slave == data_out_master, "Slave to Master data mismatch"
+		assert int(data_in_master) == int(data_out_slave), "Master to Slave data mismatch"
+		assert int(data_in_slave) == int(data_out_master), "Slave to Master data mismatch"
 		
 		print("SPI Test Passed")
 		raise StopSimulation()
