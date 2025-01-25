@@ -32,13 +32,15 @@ def SPIMaster(mosi, miso, sclk, cs, data_in, data_out, clk, start, bit_count=8):
 			if bit_idx < bit_count:
 				sclk_internal.next = not sclk_internal # Toggle clock
 				if sclk_internal: # Capture on rising edge
-					data_out.next = (data_out << 1) | miso
+					print(f"Master: Sending bit {shift_reg[bit_count - 1]}, receiving bit {miso}")
 					mosi.next = shift_reg[bit_count - 1]
 					shift_reg.next = shift_reg << 1
+					data_out.next[bit_idx] = miso
 					bit_idx.next = bit_idx + 1
 			else:
 				cs.next = 1 #Deactivate Chip Select
 				busy.next = False
+				print(f"Master transaction complete: Received data_out={hex(data_out)}")
 					
 	@always(clk.posedge)
 	def clock_gen():
@@ -67,12 +69,12 @@ def SPISlave(miso, mosi, sclk, cs, data_in, data_out, bit_count=8):
 	@always(sclk.posedge)
 	def slave_logic():
 		if not cs:
-			data_out.next = (data_out << 1) | mosi
-			miso.next = shift_reg[bit_count - 1]
-			shift_reg.next = (shift_reg << 1 ) | data_in[bit_idx]
+		        print(f"Slave: Capturing bit {mosi}, Sending bit {shift_reg[bit_count - 1]}")
+		        data_out.next[bit_idx] = mosi
+		        miso.next = shift_reg[bit_count-1]
+			shift_reg.next = (shift_reg<<1)|data_in[bit_count-bit_idx-1]
 			bit_idx.next = bit_idx + 1
 		else:
 			bit_idx.next = 0
-			shift_reg.next = 0
 			
 	return slave_logic
